@@ -37,7 +37,7 @@ class PromptDataset(Dataset):
                               padding='max_length',
                               truncation=True)
             for idx in token['input_ids']:
-                self.prompt.append(idx.to(torch.cuda.current_device()))
+                self.prompt.append(idx)
 
     def __len__(self):
         return len(self.prompt)

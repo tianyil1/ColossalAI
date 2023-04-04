@@ -68,10 +68,10 @@ class RewardModelTrainer(ABC):
         self.model.eval()
         with torch.no_grad():
             for chosen_ids, c_mask, reject_ids, r_mask in dataloader:
-                chosen_ids = chosen_ids.squeeze(1).to(torch.cuda.current_device())
-                c_mask = c_mask.squeeze(1).to(torch.cuda.current_device())
-                reject_ids = reject_ids.squeeze(1).to(torch.cuda.current_device())
-                r_mask = r_mask.squeeze(1).to(torch.cuda.current_device())
+                chosen_ids = chosen_ids.squeeze(1)#.to(torch.cuda.current_device())
+                c_mask = c_mask.squeeze(1)#.to(torch.cuda.current_device())
+                reject_ids = reject_ids.squeeze(1)#.to(torch.cuda.current_device())
+                r_mask = r_mask.squeeze(1)#.to(torch.cuda.current_device())
                 chosen_reward = self.model(chosen_ids, attention_mask=c_mask)
                 reject_reward = self.model(reject_ids, attention_mask=r_mask)
                 for i in range(len(chosen_reward)):
@@ -97,10 +97,10 @@ class RewardModelTrainer(ABC):
             acc = 0
             dist = 0
             for chosen_ids, c_mask, reject_ids, r_mask in self.train_dataloader:
-                chosen_ids = chosen_ids.squeeze(1).to(torch.cuda.current_device())
-                c_mask = c_mask.squeeze(1).to(torch.cuda.current_device())
-                reject_ids = reject_ids.squeeze(1).to(torch.cuda.current_device())
-                r_mask = r_mask.squeeze(1).to(torch.cuda.current_device())
+                chosen_ids = chosen_ids.squeeze(1)#.to(torch.cuda.current_device())
+                c_mask = c_mask.squeeze(1)#.to(torch.cuda.current_device())
+                reject_ids = reject_ids.squeeze(1)#.to(torch.cuda.current_device())
+                r_mask = r_mask.squeeze(1)#.to(torch.cuda.current_device())
                 chosen_reward = self.model(chosen_ids, attention_mask=c_mask)
                 reject_reward = self.model(reject_ids, attention_mask=r_mask)
                 loss = self.loss_fn(chosen_reward, reject_reward)

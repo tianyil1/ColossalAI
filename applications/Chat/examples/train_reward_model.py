@@ -1,3 +1,4 @@
+import time
 import argparse
 from random import randint
 
@@ -12,14 +13,15 @@ from coati.models.gpt import GPTRM
 from coati.models.llama import LlamaRM
 from coati.models.opt import OPTRM
 from coati.trainer import RewardModelTrainer
-from coati.trainer.strategies import ColossalAIStrategy, DDPStrategy, NaiveStrategy
+from coati.trainer.strategies import ColossalAIStrategy, DDPStrategy, NaiveStrategy, IntelDDPStrategy
 from coati.utils import prepare_llama_tokenizer_and_embedding
 from datasets import load_dataset
 from torch.optim import Adam
-from transformers import AutoTokenizer, BloomTokenizerFast, DebertaV2Tokenizer, LlamaTokenizer
+from transformers import AutoTokenizer, BloomTokenizerFast, DebertaV2Tokenizer, LLaMATokenizer
 from transformers.models.gpt2.tokenization_gpt2 import GPT2Tokenizer
 
 from colossalai.nn.optimizer import HybridAdam
+from colossalai.logging import get_dist_logger
 
 
 def train(args):
@@ -28,25 +30,27 @@ def train(args):
         strategy = NaiveStrategy()
     elif args.strategy == 'ddp':
         strategy = DDPStrategy()
+    elif args.strategy == 'intel-ddp':
+        strategy = IntelDDPStrategy()
     elif args.strategy == 'colossalai_gemini':
-        strategy = ColossalAIStrategy(stage=3, placement_policy='cuda')
+        strategy = ColossalAIStrategy(stage=3, placement_policy='cpu')
     elif args.strategy == 'colossalai_zero2':
-        strategy = ColossalAIStrategy(stage=2, placement_policy='cuda')
+        strategy = ColossalAIStrategy(stage=2, placement_policy='cpu')
     else:
         raise ValueError(f'Unsupported strategy "{args.strategy}"')
 
     # configure model
     with strategy.model_init_context():
         if args.model == 'bloom':
-            model = BLOOMRM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = BLOOMRM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'opt':
-            model = OPTRM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = OPTRM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'gpt2':
-            model = GPTRM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = GPTRM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'deberta':
-            model = DebertaRM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = DebertaRM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'llama':
-            model = LlamaRM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = LlamaRM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         else:
             raise ValueError(f'Unsupported model "{args.model}"')
 
@@ -54,7 +58,7 @@ def train(args):
             state_dict = torch.load(args.model_path)
             model.load_state_dict(state_dict)
 
-    model = model.to(torch.float16)
+    #model = model.to(torch.float16)
 
     # configure tokenizer
     if args.model == 'gpt2':
@@ -66,7 +70,7 @@ def train(args):
     elif args.model == 'deberta':
         tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v3-large')
     elif args.model == 'llama':
-        tokenizer = LlamaTokenizer.from_pretrained(args.pretrain)
+        tokenizer = LLaMATokenizer.from_pretrained(args.pretrain)
     else:
         raise ValueError(f'Unsupported model "{args.model}"')
     max_len = args.max_len
@@ -115,6 +119,8 @@ def train(args):
     else:
         raise ValueError(f'Unsupported dataset "{args.dataset}"')
 
+    logger = get_dist_logger()
+
     trainer = RewardModelTrainer(model=model,
                                  strategy=strategy,
                                  optim=optim,
@@ -124,21 +130,23 @@ def train(args):
                                  eval_dataset=eval_dataset,
                                  batch_size=args.batch_size,
                                  max_epochs=args.max_epochs)
-
+    start_time = time.time()
     trainer.fit()
+    end_time = time.time()
+    logger.info("Total training time: {}".format(end_time-start_time))
     # save model checkpoint after fitting on only rank0
     trainer.save_model(path=args.save_path, only_rank0=True, tokenizer=tokenizer)
     # save optimizer checkpoint on all ranks
     if args.need_optim_ckpt:
         strategy.save_optimizer(trainer.optimizer,
-                                'rm_optim_checkpoint_%d.pt' % (torch.cuda.current_device()),
+                                'rm_optim_checkpoint_0.pt' % (0),
                                 only_rank0=False)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--strategy',
-                        choices=['naive', 'ddp', 'colossalai_gemini', 'colossalai_zero2'],
+                        choices=['naive', 'ddp', 'intel-ddp','colossalai_gemini', 'colossalai_zero2'],
                         default='naive')
     parser.add_argument('--model', choices=['gpt2', 'bloom', 'opt', 'deberta', 'llama'], default='bloom')
     parser.add_argument('--pretrain', type=str, default=None)

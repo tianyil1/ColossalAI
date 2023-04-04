@@ -12,10 +12,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import sys
 from typing import Dict
 
 import transformers
 
+from ..models.llama.llama_rm import LlamaRM
 from ..models.llama.llama_lm import LlamaLM
 
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -32,7 +34,6 @@ def prepare_llama_tokenizer_and_embedding(
     """prepare llama tokenizer and embedding.
 
     """
-
     if tokenizer.pad_token is None:
         smart_tokenizer_and_embedding_resize(
             special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
@@ -62,17 +63,17 @@ def smart_tokenizer_and_embedding_resize(
     if tokenizer.pad_token is None:
         num_new_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 
-        if isinstance(model, LlamaLM):
+        if isinstance(model, LlamaLM) or isinstance(model, LlamaRM):
             model = model.get_base_model()
-
+        
         model.resize_token_embeddings(len(tokenizer))
 
-        if num_new_tokens > 0:
-            input_embeddings = model.get_input_embeddings().weight.data
-            output_embeddings = model.get_output_embeddings().weight.data
-
-            input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-            output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-
-            input_embeddings[-num_new_tokens:] = input_embeddings_avg
-            output_embeddings[-num_new_tokens:] = output_embeddings_avg
+        if num_new_tokens > 0 and not isinstance(model, LlamaRM):
+            if hasattr(model, "get_input_embeddings") and model.get_input_embeddings() is not None:
+                input_embeddings = model.get_input_embeddings().weight.data
+                input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+                input_embeddings[-num_new_tokens:] = input_embeddings_avg
+            if hasattr(model, "get_output_embeddings") and model.get_output_embeddings() is not None:
+                output_embeddings = model.get_output_embeddings().weight.data
+                output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+                output_embeddings[-num_new_tokens:] = output_embeddings_avg

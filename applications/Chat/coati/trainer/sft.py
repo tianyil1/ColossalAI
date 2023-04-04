@@ -6,7 +6,7 @@ from typing import Optional
 import loralib as lora
 import torch
 import torch.distributed as dist
-import wandb
+#import wandb
 from coati.models.loss import GPTLMLoss
 from torch import nn
 from torch.optim import Adam, Optimizer
@@ -70,8 +70,8 @@ class SFTTrainer(ABC):
                                        num_training_steps=max_steps)
 
     def fit(self, logger, log_interval=10):
-        wandb.init(project="Coati", name=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-        wandb.watch(self.model)
+        #wandb.init(project="Coati", name=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        #wandb.watch(self.model)
         total_loss = 0
         # epoch_bar = tqdm(range(self.epochs), desc='Epochs', disable=not is_rank_0())
         step_bar = tqdm(range(len(self.train_dataloader) // self.accimulation_steps * self.epochs),
@@ -84,9 +84,9 @@ class SFTTrainer(ABC):
             self.model.train()
             for batch_id, batch in enumerate(self.train_dataloader):
 
-                prompt_ids = batch["input_ids"].to(torch.cuda.current_device())
-                p_mask = batch["attention_mask"].to(torch.cuda.current_device())
-                labels = batch["labels"].to(torch.cuda.current_device())
+                prompt_ids = batch["input_ids"]#.to(torch.cuda.current_device())
+                p_mask = batch["attention_mask"]#.to(torch.cuda.current_device())
+                labels = batch["labels"]#.to(torch.cuda.current_device())
                 # prompt_ids = prompt_ids.squeeze(1).cuda()
                 # p_mask = p_mask.squeeze(1).cuda()
                 # prompt_logits = self.model(prompt_ids, attention_mask=p_mask, labels=labels)
@@ -110,7 +110,7 @@ class SFTTrainer(ABC):
                     self.strategy.optimizer_step(self.optimizer)
                     self.optimizer.zero_grad()
                     self.scheduler.step()
-                    wandb.log({
+                    logger.info({
                         "loss": total_loss / self.accimulation_steps,
                         "lr": self.scheduler.get_last_lr()[0],
                         "epoch": epoch,
@@ -132,9 +132,9 @@ class SFTTrainer(ABC):
                     loss_sum = 0
                     num_seen = 0
                     for batch in self.eval_dataloader:
-                        prompt_ids = batch["input_ids"].to(torch.cuda.current_device())
-                        p_mask = batch["attention_mask"].to(torch.cuda.current_device())
-                        labels = batch["labels"].to(torch.cuda.current_device())
+                        prompt_ids = batch["input_ids"]#.to(torch.cuda.current_device())
+                        p_mask = batch["attention_mask"]#.to(torch.cuda.current_device())
+                        labels = batch["labels"]#.to(torch.cuda.current_device())
                         # prompt_ids = prompt_ids.squeeze(1).cuda()
                         # p_mask = p_mask.squeeze(1).cuda()
 

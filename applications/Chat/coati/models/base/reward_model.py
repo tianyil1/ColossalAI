@@ -39,3 +39,6 @@ class RewardModel(LoRAModule):
         values = self.value_head(last_hidden_states)[:, :-1]
         value = values.mean(dim=1).squeeze(1)    # ensure shape is (B)
         return value
+    
+    def get_base_model(self):
+        return self.model

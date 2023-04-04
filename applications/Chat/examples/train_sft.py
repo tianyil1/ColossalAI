@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 import loralib as lora
 import torch
@@ -32,23 +33,23 @@ def train(args):
     elif args.strategy == 'ddp':
         strategy = DDPStrategy()
     elif args.strategy == 'colossalai_gemini':
-        strategy = ColossalAIStrategy(stage=3, placement_policy='cuda')
+        strategy = ColossalAIStrategy(stage=3, placement_policy='cpu')
     elif args.strategy == 'colossalai_zero2':
-        strategy = ColossalAIStrategy(stage=2, placement_policy='cuda')
+        strategy = ColossalAIStrategy(stage=2, placement_policy='cpu')
     else:
         raise ValueError(f'Unsupported strategy "{args.strategy}"')
 
     # configure model
     with strategy.model_init_context():
         if args.model == 'bloom':
-            model = BLOOMLM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = BLOOMLM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'opt':
-            model = OPTLM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = OPTLM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'gpt2':
-            model = GPTLM(pretrained=args.pretrain, lora_rank=args.lora_rank).to(torch.cuda.current_device())
+            model = GPTLM(pretrained=args.pretrain, lora_rank=args.lora_rank)#.to(torch.cuda.current_device())
         elif args.model == 'llama':
             model = LlamaLM(pretrained=args.pretrain, lora_rank=args.lora_rank,
-                            checkpoint=True).to(torch.float16).to(torch.cuda.current_device())
+                            checkpoint=True)#.to(torch.float16)#.to(torch.cuda.current_device())
         else:
             raise ValueError(f'Unsupported model "{args.model}"')
 
@@ -152,14 +153,17 @@ def train(args):
                          max_epochs=args.max_epochs,
                          accimulation_steps=args.accimulation_steps)
 
+    start_time = time.time()
     trainer.fit(logger=logger, log_interval=args.log_interval)
+    end_time = time.time()
+    logger.info("Total training time: {}".format(end_time-start_time))
 
     # save model checkpoint after fitting on only rank0
     trainer.save_model(path=args.save_path, only_rank0=True, tokenizer=tokenizer)
     # save optimizer checkpoint on all ranks
     if args.need_optim_ckpt:
         strategy.save_optimizer(trainer.optimizer,
-                                'rm_optim_checkpoint_%d.pt' % (torch.cuda.current_device()),
+                                'rm_optim_checkpoint_%d.pt' % (0),
                                 only_rank0=False)
 
 

@@ -14,7 +14,7 @@ from coati.utils import prepare_llama_tokenizer_and_embedding
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from transformers import AutoTokenizer, BloomTokenizerFast, GPT2Tokenizer, LlamaTokenizer
+from transformers import AutoTokenizer, BloomTokenizerFast, GPT2Tokenizer, LLaMATokenizer
 
 from colossalai.nn.optimizer import HybridAdam
 
@@ -117,7 +117,7 @@ def main(args):
     elif args.model == 'opt':
         tokenizer = AutoTokenizer.from_pretrained("facebook/opt-350m")
     elif args.model == 'llama':
-        tokenizer = LlamaTokenizer.from_pretrained(args.pretrain)
+        tokenizer = LLaMATokenizer.from_pretrained(args.pretrain)
         tokenizer.eos_token = '<\s>'
     else:
         raise ValueError(f'Unsupported model "{args.model}"')
