@@ -55,7 +55,7 @@ def train(args):
 
     # configure tokenizer
     if args.model == 'gpt2':
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer = GPT2Tokenizer.from_pretrained(args.pretrain)
         tokenizer.pad_token = tokenizer.eos_token
     elif args.model == 'bloom':
         tokenizer = BloomTokenizerFast.from_pretrained(args.pretrain)
@@ -102,6 +102,7 @@ def train(args):
 
         train_dataset = SFTDataset(train_data, tokenizer)
         eval_dataset = SFTDataset(eval_data, tokenizer)
+        data_collator = None
 
     else:
         train_dataset = SupervisedDataset(tokenizer=tokenizer,

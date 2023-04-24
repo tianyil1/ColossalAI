@@ -4,7 +4,7 @@ from typing import Optional
 
 import pandas as pd
 import torch
-import torch.distributed as dist
+from .strategies import extend_distributed as ext_dist
 from torch.optim import Optimizer, lr_scheduler
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
@@ -47,7 +47,7 @@ class RewardModelTrainer(ABC):
         self.epochs = max_epochs
         train_sampler = None
 
-        if dist.is_initialized() and dist.get_world_size() > 1:
+        if ext_dist.my_size > 1:
             train_sampler = DistributedSampler(train_dataset, shuffle=True, seed=42, drop_last=True)
         self.train_dataloader = DataLoader(train_dataset,
                                            shuffle=(train_sampler is None),

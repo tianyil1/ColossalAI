@@ -74,7 +74,7 @@ class Trainer(ABC):
         # replay buffer may be empty at first, we should rebuild at each training
         if not self.sample_replay_buffer:
             dataloader = self.strategy.setup_dataloader(self.replay_buffer, self.dataloader_pin_memory)
-            device = torch.cuda.current_device()
+            #device = torch.cuda.current_device()
         if self.sample_replay_buffer:
             pbar = tqdm(range(self.max_epochs), desc='Train epoch', disable=not is_rank_0())
             for _ in pbar:
@@ -89,7 +89,7 @@ class Trainer(ABC):
                 pbar = tqdm(dataloader, desc=f'Train epoch [{epoch+1}/{self.max_epochs}]', disable=not is_rank_0())
                 for experience in pbar:
                     self._on_learn_batch_start()
-                    experience.to_device(device)
+                    #experience.to_device(device)
                     metrics = self.training_step(experience)
                     self._on_learn_batch_end(metrics, experience)
                     pbar.set_postfix(metrics)
@@ -113,8 +113,8 @@ class Trainer(ABC):
                 time += 1
                 prompts = next(iter(self.prompt_dataloader))
                 self._on_make_experience_start()
-                self.experience_maker.initial_model.to(torch.cuda.current_device())
-                self.experience_maker.reward_model.to(torch.cuda.current_device())
+                #self.experience_maker.initial_model.to(torch.cuda.current_device())
+                #self.experience_maker.reward_model.to(torch.cuda.current_device())
                 experience = self._make_experience(prompts)
                 self._on_make_experience_end(experience)
                 self.replay_buffer.append(experience)

@@ -62,7 +62,7 @@ def train(args):
 
     # configure tokenizer
     if args.model == 'gpt2':
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer = GPT2Tokenizer.from_pretrained(args.pretrain)
     elif args.model == 'bloom':
         tokenizer = BloomTokenizerFast.from_pretrained('bigscience/bloom-560m')
     elif args.model == 'opt':

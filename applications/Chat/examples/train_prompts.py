@@ -1,3 +1,4 @@
+import time
 import argparse
 
 import pandas as pd
@@ -17,6 +18,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import AutoTokenizer, BloomTokenizerFast, GPT2Tokenizer, LLaMATokenizer
 
 from colossalai.nn.optimizer import HybridAdam
+from colossalai.logging import get_dist_logger
 
 
 def main(args):
@@ -67,8 +69,9 @@ def main(args):
         reward_model.load_state_dict(state_dict)
 
     if args.strategy != 'colossalai_gemini':
-        initial_model.to(torch.float16).to(torch.cuda.current_device())
-        reward_model.to(torch.float16).to(torch.cuda.current_device())
+        #initial_model.to(torch.float16).to(torch.cuda.current_device())
+        #reward_model.to(torch.float16).to(torch.cuda.current_device())
+        pass
 
     with strategy.model_init_context():
         if args.model == 'gpt2':
@@ -98,8 +101,9 @@ def main(args):
             del state_dict
 
     if args.strategy != 'colossalai_gemini':
-        critic.to(torch.float16).to(torch.cuda.current_device())
-        actor.to(torch.float16).to(torch.cuda.current_device())
+        #critic#.to(torch.float16).to(torch.cuda.current_device())
+        #actor#.to(torch.float16).to(torch.cuda.current_device())
+        pass
 
     # configure optimizer
     if args.strategy.startswith('colossalai'):
@@ -111,7 +115,7 @@ def main(args):
 
     # configure tokenizer
     if args.model == 'gpt2':
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer = GPT2Tokenizer.from_pretrained(args.pretrain)
     elif args.model == 'bloom':
         tokenizer = BloomTokenizerFast.from_pretrained('bigscience/bloom-560m')
     elif args.model == 'opt':
@@ -130,6 +134,7 @@ def main(args):
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
 
     prompt_dataset = PromptDataset(tokenizer=tokenizer, data_path=args.prompt_path, max_datasets_size=16384)
+    prompt_sampler = None
     if dist.is_initialized() and dist.get_world_size() > 1:
         prompt_sampler = DistributedSampler(prompt_dataset, shuffle=True, seed=42, drop_last=True)
     prompt_dataloader = DataLoader(prompt_dataset,
@@ -138,6 +143,7 @@ def main(args):
                                    batch_size=args.train_batch_size)
 
     pretrain_dataset = SupervisedDataset(tokenizer=tokenizer, data_path=args.pretrain_dataset, max_datasets_size=16384)
+    pretrain_sampler = None
     if dist.is_initialized() and dist.get_world_size() > 1:
         pretrain_sampler = DistributedSampler(pretrain_dataset, shuffle=True, seed=42, drop_last=True)
     pretrain_dataloader = DataLoader(pretrain_dataset,
@@ -150,10 +156,11 @@ def main(args):
         # MUST padding to max length to ensure inputs of all ranks have the same length
         # Different length may lead to hang when using gemini, as different generation steps
         batch = tokenizer(texts, return_tensors='pt', max_length=96, padding='max_length', truncation=True)
-        return {k: v.to(torch.cuda.current_device()) for k, v in batch.items()}
+        return {k: v for k, v in batch.items()}
 
     (actor, actor_optim), (critic, critic_optim) = strategy.prepare((actor, actor_optim), (critic, critic_optim))
 
+    logger = get_dist_logger()
     # configure trainer
     trainer = PPOTrainer(
         strategy,
@@ -177,11 +184,14 @@ def main(args):
         eos_token_id=tokenizer.eos_token_id,
     )
 
+    start_time = time.time()
     trainer.fit(prompt_dataloader=prompt_dataloader,
                 pretrain_dataloader=pretrain_dataloader,
                 num_episodes=args.num_episodes,
                 max_timesteps=args.max_timesteps,
                 update_timesteps=args.update_timesteps)
+    end_time = time.time()
+    logger.info("Total training time: {}".format(end_time-start_time))
 
     # save model checkpoint after fitting
     trainer.save_model(args.save_path, only_rank0=True, tokenizer=tokenizer)

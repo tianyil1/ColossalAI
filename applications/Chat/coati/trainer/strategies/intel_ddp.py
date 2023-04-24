@@ -37,6 +37,8 @@ class IntelDDPStrategy(NaiveStrategy):
     def setup_model(self, model: nn.Module) -> nn.Module:
         if ext_dist.my_size > 1:
             return ext_dist.DDP(model)
+        else:
+            return model
 
     def setup_dataloader(self, replay_buffer: ReplayBuffer, pin_memory: bool = False) -> DataLoader:
         # DDP only mode, replay buffers on each rank are different.
@@ -78,4 +80,7 @@ class IntelDDPStrategy(NaiveStrategy):
         super().save_optimizer(optimizer, path, only_rank0)
 
     def setup_sampler(self, dataset) -> DistributedSampler:
-        return DistributedSampler(dataset, ext_dist.dist.get_world_size(), ext_dist.dist.get_rank())
+        if ext_dist.my_size > 1:
+            return DistributedSampler(dataset, ext_dist.dist.get_world_size(), ext_dist.dist.get_rank())
+        else:
+            return torch.utils.data.RandomSampler(dataset)

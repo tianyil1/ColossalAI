@@ -20,7 +20,7 @@ class NaiveReplayBuffer(ReplayBuffer):
     def __init__(self, sample_batch_size: int, limit: int = 0, cpu_offload: bool = True) -> None:
         super().__init__(sample_batch_size, limit)
         self.cpu_offload = cpu_offload
-        self.target_device = torch.device(f'cuda:{torch.cuda.current_device()}')
+        #self.target_device = torch.device(f'cuda:{torch.cuda.current_device()}')
         # TODO(ver217): add prefetch
         self.items: List[BufferItem] = []
 
@@ -42,8 +42,8 @@ class NaiveReplayBuffer(ReplayBuffer):
     def sample(self) -> Experience:
         items = random.sample(self.items, self.sample_batch_size)
         experience = make_experience_batch(items)
-        if self.cpu_offload:
-            experience.to_device(self.target_device)
+        #if self.cpu_offload:
+        #    experience.to_device(self.target_device)
         return experience
 
     def __len__(self) -> int:
