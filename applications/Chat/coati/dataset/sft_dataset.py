@@ -12,6 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import sys
 import copy
 import random
 from dataclasses import dataclass, field
@@ -51,11 +52,11 @@ class SFTDataset(Dataset):
         max_length: max length of input
     """
 
-    def __init__(self, dataset, tokenizer: Callable, max_length: int = 512) -> None:
+    def __init__(self, dataset, tokenizer: Callable, max_length: int = 512, max_datasets_size: int = None) -> None:
         super().__init__()
         # self.prompts = []
         self.input_ids = []
-
+            
         for data in tqdm(dataset, disable=not is_rank_0()):
             prompt = data['prompt'] + data['completion'] + "<|endoftext|>"
             prompt_token = tokenizer(prompt,
@@ -69,7 +70,7 @@ class SFTDataset(Dataset):
             self.labels = copy.deepcopy(self.input_ids)
 
     def __len__(self):
-        length = len(self.prompts)
+        length = len(self.input_ids)
         return length
 
     def __getitem__(self, idx):
@@ -78,14 +79,14 @@ class SFTDataset(Dataset):
         # return dict(self.prompts[idx], self.prompts[idx])
 
 
-def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> Dict:
+def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer, max_length: int) -> Dict:
     """Tokenize a list of strings."""
     tokenized_list = [
         tokenizer(
             text,
             return_tensors="pt",
             padding="longest",
-            max_length=tokenizer.model_max_length,
+            max_length=max_length,
             truncation=True,
         ) for text in strings
     ]
@@ -105,10 +106,11 @@ def preprocess(
     sources: Sequence[str],
     targets: Sequence[str],
     tokenizer: transformers.PreTrainedTokenizer,
+    max_length: int,
 ) -> Dict:
     """Preprocess the data by tokenizing."""
     examples = [s + t for s, t in zip(sources, targets)]
-    examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer) for strings in (examples, sources)]
+    examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer, max_length) for strings in (examples, sources)]
     input_ids = examples_tokenized["input_ids"]
     labels = copy.deepcopy(input_ids)
     for label, source_len in zip(labels, sources_tokenized["input_ids_lens"]):
@@ -119,7 +121,7 @@ def preprocess(
 class SupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, max_datasets_size: int = None):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, max_datasets_size: int = None, max_length: int = 512):
         super(SupervisedDataset, self).__init__()
         logger.info("Loading data...")
         list_data_dict = jload(data_path)
@@ -138,7 +140,7 @@ class SupervisedDataset(Dataset):
         targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
 
         logger.info("Tokenizing inputs... This may take some time...")
-        data_dict = preprocess(sources, targets, tokenizer)
+        data_dict = preprocess(sources, targets, tokenizer, max_length)
 
         self.input_ids = data_dict["input_ids"]
         self.labels = data_dict["labels"]

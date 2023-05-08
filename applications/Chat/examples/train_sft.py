@@ -97,17 +97,24 @@ def train(args):
 
     # configure dataset
     if args.dataset == 'yizhongw/self_instruct':
-        train_data = load_dataset(args.dataset, 'super_natural_instructions', split='train')
-        eval_data = load_dataset(args.dataset, 'super_natural_instructions', split='test')
+        if args.max_datasets_size is not None:
+            split_train = 'train[:{}]'.format(args.max_datasets_size)
+            split_test = 'test[:{}]'.format(args.max_datasets_size)
+        else:
+            split_train = 'train'
+            split_test = 'test'
+        train_data = load_dataset(args.dataset, 'super_natural_instructions', split=split_train)
+        eval_data = load_dataset(args.dataset, 'super_natural_instructions', split=split_test)
 
-        train_dataset = SFTDataset(train_data, tokenizer)
-        eval_dataset = SFTDataset(eval_data, tokenizer)
-        data_collator = None
+        train_dataset = SFTDataset(train_data, tokenizer, max_datasets_size=args.max_datasets_size)
+        eval_dataset = SFTDataset(eval_data, tokenizer, max_datasets_size=args.max_datasets_size)
+        data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
 
     else:
         train_dataset = SupervisedDataset(tokenizer=tokenizer,
                                           data_path=args.dataset,
-                                          max_datasets_size=args.max_datasets_size)
+                                          max_datasets_size=args.max_datasets_size,
+                                          max_length=args.max_length)
         eval_dataset = None
         data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
 
@@ -177,6 +184,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrain', type=str, default=None)
     parser.add_argument('--dataset', type=str, default=None)
     parser.add_argument('--max_datasets_size', type=int, default=None)
+    parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--save_path', type=str, default='output')
     parser.add_argument('--need_optim_ckpt', type=bool, default=False)
     parser.add_argument('--max_epochs', type=int, default=3)
